@@ -21,6 +21,45 @@ cargo build --release
 
 Le binaire est produit dans `target/release/mach` (`mach.exe` sur Windows).
 
+### Exécuter le binaire sans repasser par `cargo`
+
+#### Linux
+
+Depuis la racine du projet :
+
+```bash
+cd /chemin/vers/mach
+./target/release/mach --help
+```
+
+
+```bash
+sudo install -m 755 target/release/mach /usr/local/bin/mach
+mach --help
+```
+
+#### Windows (PowerShell)
+
+```powershell
+cd C:\chemin\vers\mach
+cargo build --release
+.\target\release\mach.exe --help
+```
+
+Pour l’utiliser depuis n’importe quel dossier, ajoute le dossier de sortie au `PATH` :
+
+```powershell
+$env:Path += ";C:\chemin\vers\mach\target\release"
+mach.exe --help
+```
+
+Ou copie le binaire dans un dossier déjà connu :
+
+```powershell
+Copy-Item "C:\chemin\vers\mach\target\release\mach.exe" "C:\Windows\System32\mach.exe"
+mach --help
+```
+
 ### Depuis une release
 
 Télécharge le binaire correspondant à ton OS depuis la page
