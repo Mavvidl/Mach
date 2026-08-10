@@ -47,7 +47,7 @@ fn format_time(t: std::time::SystemTime) -> String {
 /// - Sinon (Windows, ou pas de fd trouvé) -> on tente d'ouvrir le fichier en accès
 ///   exclusif ; si ça échoue avec un verrou/partage refusé, un autre processus le
 ///   tient probablement ouvert. C'est un indice, pas une certitude absolue.
-fn is_currently_in_use(path: &Path, related_processes: &[ProcessEntry]) -> bool {
+fn is_currently_in_use(_path: &Path, related_processes: &[ProcessEntry]) -> bool {
     if related_processes.iter().any(|p| p.confirmed) {
         return true;
     }
