@@ -5,7 +5,7 @@ Merci de vouloir contribuer ! Voici comment t'y prendre.
 ## Mise en place
 
 ```bash
-git clone https://github.com/<ton-user>/mach.git
+git clone https://github.com/Mavvidl/mach.git
 cd mach
 cargo build
 ```

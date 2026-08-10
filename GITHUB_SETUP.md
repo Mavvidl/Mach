@@ -39,7 +39,7 @@ system-utility
 
 1. `git init && git add . && git commit -m "Initial commit"`
 2. `git branch -M main`
-3. `git remote add origin https://github.com/<ton-user>/mach.git`
+3. `git remote add origin https://github.com/Mavvidl/mach.git`
 4. `git push -u origin main`
 5. Remplacer `<ton-user>` dans `README.md` (badges + liens clone/releases).
 6. Dans **Settings → General** : activer "Issues" (déjà activé par défaut),

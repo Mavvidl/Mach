@@ -1,6 +1,6 @@
 # mach
 
-[![CI](https://github.com/<ton-user>/mach/actions/workflows/ci.yml/badge.svg)](https://github.com/<ton-user>/mach/actions/workflows/ci.yml)
+[![CI](https://github.com/Mavvidl/mach/actions/workflows/ci.yml/badge.svg)](https://github.com/Mavvidl/mach/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-2021-orange.svg)](Cargo.toml)
 
@@ -8,15 +8,13 @@
 type d'un fichier, liste les processus qui l'utilisent, indique sa dernière
 utilisation et cherche les fichiers qui y font référence (configs, logs...).
 
-> Remplace `<ton-user>` par ton pseudo/organisation GitHub une fois le dépôt
-> créé, pour que les badges pointent au bon endroit.
 
 ## Installation
 
 ### Depuis les sources
 
 ```bash
-git clone https://github.com/<ton-user>/mach.git
+git clone https://github.com/Mavvidl/mach.git
 cd mach
 cargo build --release
 ```
@@ -26,7 +24,7 @@ Le binaire est produit dans `target/release/mach` (`mach.exe` sur Windows).
 ### Depuis une release
 
 Télécharge le binaire correspondant à ton OS depuis la page
-[Releases](https://github.com/<ton-user>/mach/releases) (généré automatiquement
+[Releases](https://github.com/Mavvidl/mach/releases) (généré automatiquement
 par la CI à chaque tag `vX.Y.Z`).
 
 Compatible Linux et Windows (voir la section « Limitations » pour les
@@ -132,11 +130,6 @@ mach id_ed25519 --type --process --usage --json
 - [`serde`](https://docs.rs/serde) / [`serde_json`](https://docs.rs/serde_json) — sortie JSON
 - [`chrono`](https://docs.rs/chrono) — formatage des dates
 
-> Note versions : les APIs de `sysinfo` et `infer` évoluent régulièrement
-> entre versions majeures. Si `cargo build` signale des méthodes manquantes
-> (`process.status()`, `Users::new_with_refreshed_list()`, etc.), vérifie la
-> doc de la version installée (`cargo doc --open`) — la logique reste la
-> même, seuls quelques noms de méthodes peuvent bouger.
 
 ## Contribuer
 
