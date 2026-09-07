@@ -20,8 +20,10 @@ const ASCII_ART: &str = r#"
 ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
 "#;
 
+
 fn print_ascii_art() {
-    println!("{ASCII_ART}");
+    println!("{ASCII_ART}\n");
+    println!("By Maverick, 2024. Licensed under MIT.");
 }
 
 fn main() -> ExitCode {

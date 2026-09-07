@@ -85,13 +85,13 @@ impl MachOutput {
             println!("Dernière modif (fs): {m}");
         }
         if let Some(in_use) = self.currently_in_use {
-            println!("En cours d'utilisation : {}", if in_use { "oui" } else { "non" });
+            println!("En cours d'utilisation : {}", if in_use { "yes" } else { "no" });
         }
 
         if let Some(calls) = &self.calls {
-            println!("Références trouvées :");
+            println!("Found References :");
             if calls.is_empty() {
-                println!("  (aucune référence trouvée dans les répertoires scannés)");
+                println!("No entries found in the scanned directories");
             }
             for c in calls {
                 println!("  - {c}");
