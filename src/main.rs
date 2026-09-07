@@ -26,6 +26,9 @@ fn print_ascii_art() {
     println!("By Maverick, 2024. Licensed under MIT.");
 }
 
+
+
+
 fn main() -> ExitCode {
     print_ascii_art();
     let cli = Cli::parse();

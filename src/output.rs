@@ -46,7 +46,9 @@ impl MachOutput {
             return;
         }
 
-        println!("Fichier      : {}", self.file);
+        
+        
+        println!("File      : {}", self.file);
         if let Some(ext) = &self.extension {
             if let Some(description) = &self.extension_description {
                 println!("Extension    : {ext} ({description})");
