@@ -11,7 +11,17 @@ use output::MachOutput;
 use std::path::Path;
 use std::process::ExitCode;
 
+const ASCII_ART: &str = r#"
+ _______ _______ _______                                 (       |  ___  |  ____ \\     /|                        | () () | (   ) | (    \/ )   ( |                        | || || | (___) | |     | (___) |                        | |(_)| |  ___  | |     |  ___  |                        | |   | | (   ) | |     | (   ) |                        | )   ( | )   ( | (____/\ )   ( |                        |/     \|/     \(_______//     \|                         ______                                                  (  ___ \|\     /|                                        | (   ) | \   / )                                        | (__/ / \ (_) /                                         |  __ (   \   /                                          | (  \ \   ) (                                           | )___) )  | |                                           |/ \___/   \_/                                            _______ _______         _______________________ _       (       |  ___  )\     /(  ____ )__   __(  ____ \ \    /\| () () | (   ) | )   ( | (    )|  ) (  | (    \/  \  / /| || || | (___) | |   | | (____)|  | |  | |     |  (_/ / | |(_)| |  ___  ( (   ) )     __)  | |  | |     |   _ (  | |   | | (   ) |\ \_/ /| (\ (     | |  | |     |  ( \ \ | )   ( | )   ( | \   / | ) \ \____) (__| (____/\  /  \ \|/     \|/     \|  \_/  |/   \__|_______(_______/_/    \/
+"#;
+
+fn print_ascii_art() {
+    println!("MACH");
+    println!("{ASCII_ART}");
+}
+
 fn main() -> ExitCode {
+    print_ascii_art();
     let cli = Cli::parse();
 
     let file_path = match cli.target_file() {
@@ -40,6 +50,7 @@ fn main() -> ExitCode {
         match file_info::analyze(path) {
             Ok(info) => {
                 out.extension = info.extension;
+                out.extension_description = info.extension_description;
                 out.file_type = Some(info.description);
                 out.mime = info.mime;
             }

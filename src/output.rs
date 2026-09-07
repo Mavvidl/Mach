@@ -8,6 +8,9 @@ pub struct MachOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension: Option<String>,
 
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_description: Option<String>,
+
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub file_type: Option<String>,
 
@@ -45,7 +48,11 @@ impl MachOutput {
 
         println!("Fichier      : {}", self.file);
         if let Some(ext) = &self.extension {
-            println!("Extension    : {ext}");
+            if let Some(description) = &self.extension_description {
+                println!("Extension    : {ext} ({description})");
+            } else {
+                println!("Extension    : {ext}");
+            }
         }
         if let Some(t) = &self.file_type {
             println!("Type         : {t}");

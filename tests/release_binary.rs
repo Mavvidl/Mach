@@ -16,13 +16,18 @@ fn release_binary_should_exist_and_run() {
     );
 
     let output = Command::new(path)
-        .arg("--help")
         .output()
         .expect("impossible d’exécuter le binaire release");
 
     assert!(
-        output.status.success(),
-        "Le binaire release ne s’exécute pas correctement : {:?}",
-        output
+        !output.status.success(),
+        "Le lancement sans fichier doit échouer, mais il doit afficher le logo ASCII avant l’erreur"
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("MACH"),
+        "Le binaire doit afficher le logo ASCII au lancement. Sortie observée : {}",
+        stdout
     );
 }

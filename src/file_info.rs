@@ -6,6 +6,7 @@ use std::path::Path;
 #[derive(Debug, Clone)]
 pub struct TypeInfo {
     pub extension: Option<String>,
+    pub extension_description: Option<String>,
     pub description: String,
     pub mime: Option<String>,
 }
@@ -23,6 +24,7 @@ pub fn analyze(path: &Path) -> std::io::Result<TypeInfo> {
     let extension = path
         .extension()
         .map(|e| e.to_string_lossy().to_lowercase());
+    let extension_description = extension.as_deref().map(describe_by_extension);
 
     let mut buf = Vec::with_capacity(8192);
     {
@@ -34,6 +36,7 @@ pub fn analyze(path: &Path) -> std::io::Result<TypeInfo> {
     if let Some(kind) = infer::get(&buf) {
         return Ok(TypeInfo {
             extension,
+            extension_description,
             description: kind.mime_type().to_string(),
             mime: Some(kind.mime_type().to_string()),
         });
@@ -44,6 +47,7 @@ pub fn analyze(path: &Path) -> std::io::Result<TypeInfo> {
         if let Some(desc) = sniff_text_format(text) {
             return Ok(TypeInfo {
                 extension,
+                extension_description,
                 description: desc.to_string(),
                 mime: Some("text/plain".to_string()),
             });
@@ -51,6 +55,7 @@ pub fn analyze(path: &Path) -> std::io::Result<TypeInfo> {
         if !text.trim().is_empty() {
             return Ok(TypeInfo {
                 extension,
+                extension_description,
                 description: "ASCII/UTF-8 text".to_string(),
                 mime: Some("text/plain".to_string()),
             });
@@ -58,13 +63,13 @@ pub fn analyze(path: &Path) -> std::io::Result<TypeInfo> {
     }
 
     // 3. Repli sur l'extension
-    let description = extension
-        .as_deref()
-        .map(describe_by_extension)
+    let description = extension_description
+        .clone()
         .unwrap_or_else(|| "data (type inconnu)".to_string());
 
     Ok(TypeInfo {
         extension,
+        extension_description,
         description,
         mime: None,
     })
@@ -114,6 +119,28 @@ fn sniff_text_format(text: &str) -> Option<&'static str> {
 
 fn describe_by_extension(ext: &str) -> String {
     match ext {
+        "bin" => "fichier binaire".to_string(),
+        "d" => "fichier source D".to_string(),
+        "c" => "fichier source C".to_string(),
+        "h" => "fichier d'en-tête C/C++".to_string(),
+        "cpp" | "cc" | "cxx" => "fichier source C++".to_string(),
+        "rs" => "fichier source Rust".to_string(),
+        "py" => "fichier source Python".to_string(),
+        "js" | "mjs" | "cjs" => "fichier source JavaScript".to_string(),
+        "ts" => "fichier source TypeScript".to_string(),
+        "html" | "htm" => "document HTML".to_string(),
+        "css" => "feuille de style CSS".to_string(),
+        "json" => "données JSON".to_string(),
+        "xml" => "document XML".to_string(),
+        "txt" => "fichier texte".to_string(),
+        "csv" => "fichier de valeurs séparées par des virgules".to_string(),
+        "pdf" => "document PDF".to_string(),
+        "png" | "jpg" | "jpeg" | "gif" | "webp" => "fichier image".to_string(),
+        "mp3" | "wav" | "flac" => "fichier audio".to_string(),
+        "mp4" | "avi" | "mkv" | "mov" => "fichier vidéo".to_string(),
+        "zip" | "tar" | "gz" | "bz2" | "xz" | "7z" | "rar" => {
+            "archive compressée".to_string()
+        }
         "pem" | "key" => "PEM/clé (contenu non déterminé)".to_string(),
         "pub" => "clé publique probable".to_string(),
         "conf" | "cfg" | "ini" => "fichier de configuration".to_string(),
@@ -122,5 +149,15 @@ fn describe_by_extension(ext: &str) -> String {
         "yaml" | "yml" => "YAML data".to_string(),
         "md" => "Markdown document".to_string(),
         other => format!("fichier .{other} (type non identifié)"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::describe_by_extension;
+
+    #[test]
+    fn describes_binary_extension() {
+        assert_eq!(describe_by_extension("bin"), "fichier binaire");
     }
 }
