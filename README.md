@@ -182,3 +182,15 @@ Ce projet est sous licence MIT — voir [LICENSE](LICENSE).
 ## Changelog
 
 Voir [CHANGELOG.md](CHANGELOG.md) pour l'historique des versions.
+
+
+#####--NOTE--#####
+Ajoutez la cible Windows à votre installation Rust :
+  rustup target add x86_64-pc-windows-gnu
+Installez le compilateur croisé sur votre système hôte :
+  sudo apt install mingw-w64 (Sur Ubuntu/Debian)
+  brew install mingw-w64 (Sur macOS (via Homebrew)
+
+Compilez votre projet en spécifiant la cible : 
+  cargo build --release --target x86_64-pc-windows-gnu
+  
