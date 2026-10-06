@@ -17,12 +17,12 @@ pub fn analyze(path: &Path, related_processes: &[ProcessEntry]) -> UsageInfo {
     let last_accessed = metadata
         .as_ref()
         .and_then(|m| m.accessed().ok())
-        .map(|t| format_time(t));
+        .map(format_time);
 
     let last_modified = metadata
         .as_ref()
         .and_then(|m| m.modified().ok())
-        .map(|t| format_time(t));
+        .map(format_time);
 
     let currently_in_use = is_currently_in_use(path, related_processes);
 
@@ -55,10 +55,15 @@ fn is_currently_in_use(_path: &Path, related_processes: &[ProcessEntry]) -> bool
     #[cfg(target_os = "windows")]
     {
         use std::fs::OpenOptions;
+        use std::os::windows::fs::OpenOptionsExt;
         // Sur Windows, tenter une ouverture qui échoue si un autre process
         // a le fichier verrouillé en écriture exclusive.
-        return OpenOptions::new().write(true).open(path).is_err()
-            && path.exists();
+        OpenOptions::new()
+            .read(true)
+            .share_mode(0)
+            .open(_path)
+            .is_err()
+            && _path.exists()
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -73,7 +78,10 @@ fn describe(related_processes: &[ProcessEntry], in_use: bool) -> String {
     }
 
     if let Some(p) = related_processes.iter().find(|p| p.confirmed) {
-        format!("Actuellement utilisé par le processus {} (pid {})", p.user, p.pid)
+        format!(
+            "Actuellement utilisé par le processus {} (pid {})",
+            p.user, p.pid
+        )
     } else if let Some(p) = related_processes.first() {
         format!(
             "Probablement utilisé par {} (pid {}) — indice non confirmé",
