@@ -46,8 +46,6 @@ impl MachOutput {
             return;
         }
 
-        
-        
         println!("File      : {}", self.file);
         if let Some(ext) = &self.extension {
             if let Some(description) = &self.extension_description {
@@ -87,7 +85,10 @@ impl MachOutput {
             println!("Dernière modif (fs): {m}");
         }
         if let Some(in_use) = self.currently_in_use {
-            println!("En cours d'utilisation : {}", if in_use { "yes" } else { "no" });
+            println!(
+                "En cours d'utilisation : {}",
+                if in_use { "yes" } else { "no" }
+            );
         }
 
         if let Some(calls) = &self.calls {

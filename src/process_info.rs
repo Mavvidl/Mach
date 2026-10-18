@@ -106,7 +106,11 @@ fn heuristic_scan(path: &Path, system: &System, users: &Users) -> Vec<ProcessEnt
     let mut results = Vec::new();
 
     for (pid, process) in system.processes() {
-        let name_match = process.name().to_string_lossy().to_lowercase().contains(&file_name);
+        let name_match = process
+            .name()
+            .to_string_lossy()
+            .to_lowercase()
+            .contains(&file_name);
         let cmd_match = process
             .cmd()
             .iter()

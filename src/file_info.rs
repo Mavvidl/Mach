@@ -21,9 +21,7 @@ pub struct TypeInfo {
 ///    sans signature binaire fiable.
 /// 3. Repli sur l'extension déclarée si rien n'a été identifié.
 pub fn analyze(path: &Path) -> std::io::Result<TypeInfo> {
-    let extension = path
-        .extension()
-        .map(|e| e.to_string_lossy().to_lowercase());
+    let extension = path.extension().map(|e| e.to_string_lossy().to_lowercase());
     let extension_description = extension.as_deref().map(describe_by_extension);
 
     let mut buf = Vec::with_capacity(8192);
@@ -138,9 +136,7 @@ fn describe_by_extension(ext: &str) -> String {
         "png" | "jpg" | "jpeg" | "gif" | "webp" => "fichier image".to_string(),
         "mp3" | "wav" | "flac" => "fichier audio".to_string(),
         "mp4" | "avi" | "mkv" | "mov" => "fichier vidéo".to_string(),
-        "zip" | "tar" | "gz" | "bz2" | "xz" | "7z" | "rar" => {
-            "archive compressée".to_string()
-        }
+        "zip" | "tar" | "gz" | "bz2" | "xz" | "7z" | "rar" => "archive compressée".to_string(),
         "pem" | "key" => "PEM/clé (contenu non déterminé)".to_string(),
         "pub" => "clé publique probable".to_string(),
         "conf" | "cfg" | "ini" => "fichier de configuration".to_string(),
