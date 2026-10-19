@@ -65,3 +65,23 @@ fn existing_file_returns_type_as_json() {
     assert_eq!(result["extension"], "txt");
     assert!(result["type"].as_str().is_some());
 }
+
+#[test]
+fn text_source_file_uses_specific_extension_type() {
+    let file = unique_temp_file().with_extension("rs");
+    fs::write(&file, "fn main() {}")
+        .expect("impossible de créer le fichier temporaire");
+
+    let path = file.to_string_lossy();
+    let output = run_mach(&["--type", "--json", path.as_ref()]);
+    fs::remove_file(&file).expect("impossible de supprimer le fichier temporaire");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json_start = stdout.find('{').expect("JSON absent de la sortie");
+    let result: serde_json::Value =
+        serde_json::from_str(&stdout[json_start..]).expect("sortie JSON invalide");
+
+    assert_eq!(result["type"], "fichier source Rust");
+    assert_eq!(result["mime"], "text/plain");
+}

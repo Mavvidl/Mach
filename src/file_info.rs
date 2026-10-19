@@ -19,7 +19,8 @@ pub struct TypeInfo {
 /// 2. Heuristiques texte pour les formats que `infer` ne reconnaît pas
 ///    (clés OpenSSH/PEM, scripts, JSON, etc), car ce sont des fichiers texte
 ///    sans signature binaire fiable.
-/// 3. Repli sur l'extension déclarée si rien n'a été identifié.
+/// 3. Description liée à l'extension pour les autres fichiers texte.
+/// 4. Repli sur l'extension déclarée si rien n'a été identifié.
 pub fn analyze(path: &Path) -> std::io::Result<TypeInfo> {
     let extension = path.extension().map(|e| e.to_string_lossy().to_lowercase());
     let extension_description = extension.as_deref().map(describe_by_extension);
@@ -53,8 +54,10 @@ pub fn analyze(path: &Path) -> std::io::Result<TypeInfo> {
         if !text.trim().is_empty() {
             return Ok(TypeInfo {
                 extension,
-                extension_description,
-                description: "ASCII/UTF-8 text".to_string(),
+                extension_description: extension_description.clone(),
+                description: extension_description
+                    .clone()
+                    .unwrap_or_else(|| "ASCII/UTF-8 text".to_string()),
                 mime: Some("text/plain".to_string()),
             });
         }
@@ -125,9 +128,20 @@ fn describe_by_extension(ext: &str) -> String {
         "rs" => "fichier source Rust".to_string(),
         "py" => "fichier source Python".to_string(),
         "js" | "mjs" | "cjs" => "fichier source JavaScript".to_string(),
+        "jsx" => "fichier source JavaScript avec JSX".to_string(),
         "ts" => "fichier source TypeScript".to_string(),
+        "tsx" => "fichier source TypeScript avec JSX".to_string(),
+        "go" => "fichier source Go".to_string(),
+        "java" => "fichier source Java".to_string(),
+        "cs" => "fichier source C#".to_string(),
+        "rb" => "fichier source Ruby".to_string(),
+        "php" => "fichier source PHP".to_string(),
+        "sh" | "bash" | "zsh" => "script shell".to_string(),
+        "sql" => "script SQL".to_string(),
         "html" | "htm" => "document HTML".to_string(),
         "css" => "feuille de style CSS".to_string(),
+        "scss" | "sass" => "feuille de style Sass".to_string(),
+        "less" => "feuille de style Less".to_string(),
         "json" => "données JSON".to_string(),
         "xml" => "document XML".to_string(),
         "txt" => "fichier texte".to_string(),

@@ -119,7 +119,9 @@ mach id_ed25519 --type --process --usage --json
 - **Type de fichier** (`file_info.rs`) : `infer` détecte les formats binaires
   par signature (magic bytes). Pour les fichiers texte sans signature fiable
   (clés PEM/OpenSSH, JSON, YAML, scripts...), une heuristique de contenu prend
-  le relais. En dernier recours, on retombe sur l'extension déclarée.
+  le relais. Les autres fichiers texte sont décrits à partir de leur extension
+  (langage, format ou type de document) ; l'extension sert aussi de dernier
+  recours quand le contenu n'est pas reconnu.
 
 - **Processus liés** (`process_info.rs`) :
   - **Linux** : lecture de `/proc/[pid]/fd/*` — équivalent maison de `lsof`.
