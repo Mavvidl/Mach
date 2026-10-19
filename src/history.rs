@@ -17,25 +17,27 @@ use std::time::Duration;
 use walkdir::WalkDir;
 
 const COVERAGE_NOTE: &str = "Historique limité aux états observés depuis l'activation; le polling peut manquer des changements entre deux passages et une lecture n'est pas un instantané atomique.";
-type PreviousState = (
-    i64,
-    Option<String>,
-    Option<i64>,
-    Option<String>,
-    Option<String>,
-);
-
-#[derive(Debug, Serialize)]
-struct Observation {
-    path: String,
-    observed_at: String,
+struct PreviousState {
+    present: i64,
     sha256: Option<String>,
     size: Option<i64>,
     permissions: Option<String>,
     owner: Option<String>,
-    provenance: String,
-    change: String,
-    present: bool,
+    modified_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Observation {
+    pub path: String,
+    pub observed_at: String,
+    pub sha256: Option<String>,
+    pub size: Option<i64>,
+    pub permissions: Option<String>,
+    pub owner: Option<String>,
+    pub modified_at: Option<String>,
+    pub provenance: String,
+    pub change: String,
+    pub present: bool,
 }
 
 #[derive(Serialize)]
@@ -84,6 +86,7 @@ pub fn watch(
     let signal_running = Arc::clone(&running);
     ctrlc::set_handler(move || signal_running.store(false, Ordering::SeqCst))?;
 
+    let mut initial_pass = true;
     while running.load(Ordering::SeqCst) {
         let (mut files, complete_scan) = collect_files(&root, watch_single_file);
         files.retain(|path| {
@@ -97,7 +100,12 @@ pub fn watch(
             .collect();
 
         for path in files {
-            match observe_file(&connection, &path, "polling") {
+            let provenance = if initial_pass {
+                "watch:baseline"
+            } else {
+                "watch:polling"
+            };
+            match observe_file(&connection, &path, provenance) {
                 Ok(Some(observation)) => print_observation(&observation, json),
                 Ok(None) => {}
                 Err(error) => eprintln!("Avertissement : {} : {error}", path.display()),
@@ -115,6 +123,7 @@ pub fn watch(
         } else {
             eprintln!("Avertissement : parcours incomplet; les absences ne sont pas enregistrées.");
         }
+        initial_pass = false;
 
         for _ in 0..interval_secs.saturating_mul(4) {
             if !running.load(Ordering::SeqCst) {
@@ -137,7 +146,7 @@ pub fn show_history(path: &Path, db_path: Option<&Path>, json: bool) -> Result<(
     let connection = open_database(&db_path)?;
     let path = normalized_path(path);
     let mut statement = connection.prepare(
-        "SELECT path, observed_at, sha256, size, permissions, owner, provenance, change_summary, present
+        "SELECT path, observed_at, sha256, size, permissions, owner, modified_at, provenance, change_summary, present
          FROM observations WHERE path = ?1 ORDER BY observed_at ASC, id ASC",
     )?;
     let observations = statement
@@ -159,6 +168,25 @@ pub fn show_history(path: &Path, db_path: Option<&Path>, json: bool) -> Result<(
     Ok(())
 }
 
+pub fn recorded_observations(
+    path: &Path,
+    db_path: Option<&Path>,
+) -> Result<Vec<Observation>, Box<dyn Error>> {
+    let db_path = db_path
+        .map(Path::to_path_buf)
+        .unwrap_or_else(default_db_path);
+    let connection = open_database(&db_path)?;
+    let path = normalized_path(path);
+    let mut statement = connection.prepare(
+        "SELECT path, observed_at, sha256, size, permissions, owner, modified_at, provenance, change_summary, present
+         FROM observations WHERE path = ?1 ORDER BY observed_at ASC, id ASC",
+    )?;
+    let observations = statement
+        .query_map([path.to_string_lossy().as_ref()], row_to_observation)?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(observations)
+}
+
 pub fn show_diff(since: &str, db_path: Option<&Path>, json: bool) -> Result<(), Box<dyn Error>> {
     let age = parse_duration(since)?;
     let db_path = db_path
@@ -171,7 +199,7 @@ pub fn show_diff(since: &str, db_path: Option<&Path>, json: bool) -> Result<(), 
         .checked_sub(age_millis)
         .ok_or("durée trop longue")?;
     let mut statement = connection.prepare(
-        "SELECT path, observed_at, sha256, size, permissions, owner, provenance, change_summary, present
+        "SELECT path, observed_at, sha256, size, permissions, owner, modified_at, provenance, change_summary, present
          FROM observations WHERE observed_at >= ?1 AND change_summary != 'baseline' ORDER BY observed_at ASC, id ASC",
     )?;
     let observations = statement
@@ -193,7 +221,7 @@ pub fn show_diff(since: &str, db_path: Option<&Path>, json: bool) -> Result<(), 
     Ok(())
 }
 
-fn open_database(path: &Path) -> Result<Connection, Box<dyn Error>> {
+pub(crate) fn open_database(path: &Path) -> Result<Connection, Box<dyn Error>> {
     if let Some(parent) = path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
@@ -219,6 +247,7 @@ fn open_database(path: &Path) -> Result<Connection, Box<dyn Error>> {
             size INTEGER,
             permissions TEXT,
             owner TEXT,
+            modified_at INTEGER,
             provenance TEXT NOT NULL,
             change_summary TEXT NOT NULL,
             present INTEGER NOT NULL
@@ -226,10 +255,21 @@ fn open_database(path: &Path) -> Result<Connection, Box<dyn Error>> {
         CREATE INDEX IF NOT EXISTS observations_path_time ON observations(path, observed_at);
         CREATE INDEX IF NOT EXISTS observations_time ON observations(observed_at);",
     )?;
+    let has_modified_at: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('observations') WHERE name = 'modified_at')",
+        [],
+        |row| row.get(0),
+    )?;
+    if !has_modified_at {
+        connection.execute(
+            "ALTER TABLE observations ADD COLUMN modified_at INTEGER",
+            [],
+        )?;
+    }
     Ok(connection)
 }
 
-fn observe_file(
+pub(crate) fn observe_file(
     connection: &Connection,
     path: &Path,
     provenance: &str,
@@ -255,40 +295,46 @@ fn observe_file(
     let size = i64::try_from(metadata.len()).map_err(|_| "taille du fichier hors limites")?;
     let permissions = permissions(&metadata);
     let owner = owner(&metadata);
+    let modified_at = metadata.modified().ok().and_then(system_time_millis);
     let path = path.to_string_lossy().into_owned();
     let previous: Option<PreviousState> = connection
         .query_row(
-            "SELECT present, sha256, size, permissions, owner FROM observations
+            "SELECT present, sha256, size, permissions, owner, modified_at FROM observations
                  WHERE path = ?1 ORDER BY observed_at DESC, id DESC LIMIT 1",
             [&path],
             |row| {
-                Ok((
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                    row.get(4)?,
-                ))
+                Ok(PreviousState {
+                    present: row.get(0)?,
+                    sha256: row.get(1)?,
+                    size: row.get(2)?,
+                    permissions: row.get(3)?,
+                    owner: row.get(4)?,
+                    modified_at: row.get(5)?,
+                })
             },
         )
         .optional()?;
 
     let change = match previous {
+        None if provenance == "watch:polling" => "apparition observée au polling".to_string(),
         None => "baseline".to_string(),
-        Some((0, _, _, _, _)) => "réapparition constatée".to_string(),
-        Some((_, old_hash, old_size, old_permissions, old_owner)) => {
+        Some(PreviousState { present: 0, .. }) => "réapparition constatée".to_string(),
+        Some(previous) => {
             let mut changes = Vec::new();
-            if old_hash.as_deref() != Some(&sha256) {
+            if previous.sha256.as_deref() != Some(&sha256) {
                 changes.push("contenu (SHA-256)");
             }
-            if old_size != Some(size) {
+            if previous.size != Some(size) {
                 changes.push("taille");
             }
-            if old_permissions != permissions {
+            if previous.permissions != permissions {
                 changes.push("permissions");
             }
-            if old_owner != owner {
+            if previous.owner != owner {
                 changes.push("propriétaire");
+            }
+            if previous.modified_at != modified_at {
+                changes.push("date de modification");
             }
             if changes.is_empty() {
                 return Ok(None);
@@ -299,9 +345,9 @@ fn observe_file(
 
     let timestamp = Utc::now().timestamp_millis();
     connection.execute(
-        "INSERT INTO observations(path, observed_at, sha256, size, permissions, owner, provenance, change_summary, present)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1)",
-        params![path, timestamp, sha256, size, permissions, owner, provenance, change],
+        "INSERT INTO observations(path, observed_at, sha256, size, permissions, owner, modified_at, provenance, change_summary, present)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1)",
+        params![path, timestamp, sha256, size, permissions, owner, modified_at, provenance, change],
     )?;
     Ok(Some(Observation {
         path,
@@ -310,6 +356,7 @@ fn observe_file(
         size: Some(size),
         permissions,
         owner,
+        modified_at: modified_at.map(format_time),
         provenance: provenance.to_string(),
         change,
         present: true,
@@ -345,6 +392,7 @@ fn record_missing(
         size: None,
         permissions: None,
         owner: None,
+        modified_at: None,
         provenance: "polling".to_string(),
         change: change.to_string(),
         present: false,
@@ -355,8 +403,9 @@ fn previously_observed_paths(
     connection: &Connection,
     root: &Path,
 ) -> Result<Vec<String>, Box<dyn Error>> {
-    let mut statement = connection
-        .prepare("SELECT path FROM observations GROUP BY path HAVING path = ?1 OR path LIKE ?2")?;
+    let mut statement = connection.prepare(
+        "SELECT DISTINCT path FROM observations WHERE path = ?1 OR substr(path, 1, length(?2)) = ?2",
+    )?;
     let root = root.to_string_lossy();
     let prefix = if root.ends_with(std::path::MAIN_SEPARATOR) {
         root.to_string()
@@ -410,6 +459,7 @@ fn collect_files(root: &Path, watch_single_file: bool) -> (Vec<PathBuf>, bool) {
 
 fn row_to_observation(row: &rusqlite::Row<'_>) -> rusqlite::Result<Observation> {
     let timestamp: i64 = row.get(1)?;
+    let modified_at: Option<i64> = row.get(6)?;
     Ok(Observation {
         path: row.get(0)?,
         observed_at: format_time(timestamp),
@@ -417,9 +467,10 @@ fn row_to_observation(row: &rusqlite::Row<'_>) -> rusqlite::Result<Observation> 
         size: row.get(3)?,
         permissions: row.get(4)?,
         owner: row.get(5)?,
-        provenance: row.get(6)?,
-        change: row.get(7)?,
-        present: row.get::<_, i64>(8)? != 0,
+        modified_at: modified_at.map(format_time),
+        provenance: row.get(7)?,
+        change: row.get(8)?,
+        present: row.get::<_, i64>(9)? != 0,
     })
 }
 
@@ -444,7 +495,7 @@ fn print_observations(observations: &[Observation]) {
     }
     for observation in observations {
         println!(
-            "{} | {} | {} | sha256={} taille={} permissions={} propriétaire={} provenance={}",
+            "{} | {} | {} | sha256={} taille={} permissions={} propriétaire={} modifié={} provenance={}",
             observation.observed_at,
             observation.change,
             observation.path,
@@ -457,6 +508,7 @@ fn print_observations(observations: &[Observation]) {
                 .as_deref()
                 .unwrap_or("indisponibles"),
             observation.owner.as_deref().unwrap_or("indisponible"),
+            observation.modified_at.as_deref().unwrap_or("indisponible"),
             observation.provenance,
         );
     }
@@ -546,9 +598,14 @@ fn format_time(timestamp: i64) -> String {
         .unwrap_or_else(|| timestamp.to_string())
 }
 
+fn system_time_millis(time: std::time::SystemTime) -> Option<i64> {
+    i64::try_from(time.duration_since(std::time::UNIX_EPOCH).ok()?.as_millis()).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::{observe_file, open_database, parse_duration, record_missing};
+    use rusqlite::Connection;
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -612,6 +669,81 @@ mod tests {
         assert_eq!(restored.change, "réapparition constatée");
 
         drop(connection);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn distinguishes_initial_baseline_from_later_first_observation() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!(
+            "mach-watch-appearance-test-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&directory).unwrap();
+        let file = directory.join("arrived.conf");
+        fs::write(&file, "arrived").unwrap();
+        let connection = open_database(&directory.join("history.sqlite3")).unwrap();
+
+        let baseline = observe_file(&connection, &file, "watch:baseline")
+            .unwrap()
+            .unwrap();
+        assert_eq!(baseline.change, "baseline");
+        fs::remove_file(&file).unwrap();
+        let appearance = directory.join("new.conf");
+        fs::write(&appearance, "new").unwrap();
+        let observed = observe_file(&connection, &appearance, "watch:polling")
+            .unwrap()
+            .unwrap();
+        assert_eq!(observed.change, "apparition observée au polling");
+
+        drop(connection);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn migrates_an_existing_database_without_modified_timestamp_column() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!(
+            "mach-history-migration-test-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&directory).unwrap();
+        let database = directory.join("history.sqlite3");
+        let connection = Connection::open(&database).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE observations (
+                    id INTEGER PRIMARY KEY,
+                    path TEXT NOT NULL,
+                    observed_at INTEGER NOT NULL,
+                    sha256 TEXT,
+                    size INTEGER,
+                    permissions TEXT,
+                    owner TEXT,
+                    provenance TEXT NOT NULL,
+                    change_summary TEXT NOT NULL,
+                    present INTEGER NOT NULL
+                );",
+            )
+            .unwrap();
+        drop(connection);
+
+        let migrated = open_database(&database).unwrap();
+        let has_modified_at: bool = migrated
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM pragma_table_info('observations') WHERE name = 'modified_at')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(has_modified_at);
+        drop(migrated);
         fs::remove_dir_all(directory).unwrap();
     }
 }

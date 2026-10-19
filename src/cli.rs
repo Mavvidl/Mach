@@ -49,6 +49,48 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
+    /// Rassembler type, empreinte, processus, références, historique et anomalies
+    Inspect {
+        path: PathBuf,
+        #[arg(long = "scan", value_name = "DIR", num_args = 1..)]
+        scan_dirs: Vec<PathBuf>,
+        #[arg(long)]
+        db: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Rechercher les processus associés au fichier
+    Who {
+        path: PathBuf,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Rechercher les références textuelles au fichier
+    Refs {
+        path: PathBuf,
+        #[arg(long = "scan", value_name = "DIR", num_args = 1..)]
+        scan_dirs: Vec<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Comparer le fichier avec sa dernière observation et relever les indicateurs
+    Anomaly {
+        path: PathBuf,
+        #[arg(long)]
+        db: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Construire le graphe des relations observables pour un fichier
+    Graph {
+        path: PathBuf,
+        #[arg(long = "scan", value_name = "DIR", num_args = 1..)]
+        scan_dirs: Vec<PathBuf>,
+        #[arg(long)]
+        db: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
     /// Enregistrer périodiquement l'état des fichiers (polling, pas un journal d'événements)
     Watch {
         path: PathBuf,

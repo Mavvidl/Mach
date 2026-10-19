@@ -28,7 +28,10 @@ src/
 ├── main.rs          # point d'entrée, orchestration
 ├── cli.rs            # définition des flags (clap)
 ├── file_info.rs       # détection extension/type
+├── anomaly.rs         # indicateurs vérifiables comparés à l'historique
+├── graph.rs           # graphe de relations sourcées
 ├── history.rs         # instantanés SQLite, historique et diff
+├── inspect.rs         # rapport agrégé d'inspection
 ├── impact.rs          # rapport d'impact avec preuves et confiance
 ├── process_info.rs    # processus liés au fichier
 ├── usage.rs           # dernière utilisation / usage actif

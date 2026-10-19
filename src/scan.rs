@@ -1,4 +1,5 @@
 use regex::Regex;
+use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -6,7 +7,7 @@ use walkdir::WalkDir;
 /// Taille max de fichier lue pendant le scan (évite de charger des gros binaires/logs en RAM)
 const MAX_SCAN_BYTES: u64 = 5 * 1024 * 1024; // 5 Mo
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ReferenceEvidence {
     pub source: String,
     pub line: usize,

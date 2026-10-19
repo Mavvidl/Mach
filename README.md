@@ -115,12 +115,40 @@ ou les chemins fournis avec `--scan`). Chaque référence inclut sa ligne source
 de confiance. Une mention dans une configuration ou une unité de service ne prouve pas une
 dépendance active. La commande ne modifie jamais le système.
 
+### Inspection, graphe et anomalies
+
+```bash
+mach inspect /etc/ssh/sshd_config --scan /etc --json
+mach who /etc/ssh/sshd_config
+mach refs /etc/ssh/sshd_config --scan /etc --json
+mach graph /etc/ssh/sshd_config --scan /etc --json
+mach anomaly /usr/local/bin/agent --json
+```
+
+`inspect` rassemble le type, les métadonnées disponibles, SHA-256, processus,
+références, historique local, indicateurs d'anomalie et graphe. Le champ de dernier
+accès est sourcé par les métadonnées du système de fichiers; ce n'est pas une preuve
+d'utilisation par un processus.
+
+`graph` relie uniquement les éléments effectivement collectés. Une ouverture de fichier
+observée est une relation directe au moment du contrôle; une référence dans un script,
+une configuration ou une unité est une relation déduite, avec ligne source et confiance.
+Les services candidats ne sont pas présentés comme des dépendances avérées.
+
+`anomaly` compare le fichier à sa dernière observation présente. Sans référence antérieure,
+la sortie indique que la comparaison est impossible. Les permissions, le propriétaire,
+la taille, SHA-256 et la date de modification sont comparés lorsque les valeurs sont
+disponibles. Un fichier vu pour la première fois après l'instantané initial d'un `watch`
+est signalé comme apparition observée, sans inférer sa date de création. Une anomalie
+est un indicateur à examiner, jamais un verdict de logiciel malveillant.
+
 Pour inspecter une sortie JSON ou isoler la base d'historique :
 
 ```bash
 mach impact /etc/ssh/sshd_config --scan /etc --json
 mach history /etc/ssh/sshd_config --db ./mach-history.sqlite3 --json
 mach diff --since 7d --db ./mach-history.sqlite3 --json
+mach anomaly ./config.toml --db ./mach-history.sqlite3 --json
 ```
 
 ```json
@@ -177,6 +205,12 @@ mach diff --since 7d --db ./mach-history.sqlite3 --json
   chaque fichier rencontré (`regex`), avec une limite de taille par fichier
   (5 Mo) pour rester rapide. Les fichiers binaires ou non-UTF8 sont ignorés
   silencieusement.
+- **Historique/anomalies** (`history.rs`, `anomaly.rs`) : empreintes SHA-256 et
+  attributs de métadonnées sont comparés aux observations SQLite locales. Le polling
+  peut manquer des événements entre deux passages et ne reconstitue rien d'antérieur.
+- **Relations** (`graph.rs`) : les relations exposent leur source, heure, confiance,
+  caractère direct ou déduit et limite de collecte. Les inférences textuelles ne sont
+  jamais assimilées à une dépendance prouvée.
 
 ## Limitations connues
 

@@ -1,7 +1,10 @@
+mod anomaly;
 mod cli;
 mod file_info;
+mod graph;
 mod history;
 mod impact;
+mod inspect;
 mod output;
 mod process_info;
 mod scan;
@@ -35,6 +38,27 @@ fn main() -> ExitCode {
 
     if let Some(command) = cli.command {
         return match command {
+            cli::Commands::Inspect {
+                path,
+                scan_dirs,
+                db,
+                json,
+            } => run_command(inspect::analyze(&path, &scan_dirs, db.as_deref(), json)),
+            cli::Commands::Who { path, json } => run_command(run_who(&path, json)),
+            cli::Commands::Refs {
+                path,
+                scan_dirs,
+                json,
+            } => run_command(run_refs(&path, &scan_dirs, json)),
+            cli::Commands::Anomaly { path, db, json } => {
+                run_command(anomaly::analyze(&path, db.as_deref(), json))
+            }
+            cli::Commands::Graph {
+                path,
+                scan_dirs,
+                db,
+                json,
+            } => run_command(graph::analyze(&path, &scan_dirs, db.as_deref(), json)),
             cli::Commands::Watch {
                 path,
                 interval,
@@ -138,4 +162,93 @@ fn run_command(result: Result<(), Box<dyn std::error::Error>>) -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+fn run_who(path: &Path, json: bool) -> Result<(), Box<dyn std::error::Error>> {
+    if !path.is_file() {
+        return Err(format!(
+            "la cible '{}' n'est pas un fichier accessible",
+            path.display()
+        )
+        .into());
+    }
+    let processes = process_info::find_related_processes(path);
+    if json {
+        println!("{}", serde_json::to_string_pretty(&processes)?);
+    } else if processes.is_empty() {
+        println!("Aucun processus associé observé.");
+    } else {
+        for process in processes {
+            println!(
+                "pid {} {} {} [{}]",
+                process.pid,
+                process.user,
+                process.status,
+                if process.confirmed {
+                    "descripteur observé"
+                } else {
+                    "indice heuristique"
+                }
+            );
+        }
+    }
+    Ok(())
+}
+
+fn run_refs(
+    path: &Path,
+    scan_dirs: &[std::path::PathBuf],
+    json: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if !path.is_file() {
+        return Err(format!(
+            "la cible '{}' n'est pas un fichier accessible",
+            path.display()
+        )
+        .into());
+    }
+    let roots = if scan_dirs.is_empty() {
+        vec![std::env::current_dir()?]
+    } else {
+        scan_dirs.to_vec()
+    };
+    let skipped: Vec<_> = roots.iter().filter(|root| !root.is_dir()).collect();
+    let existing: Vec<_> = roots.iter().filter(|root| root.is_dir()).cloned().collect();
+    let references = scan::find_reference_evidence(&existing, path);
+    #[derive(serde::Serialize)]
+    struct ReferencesReport {
+        target: String,
+        scan_roots: Vec<String>,
+        skipped_scan_roots: Vec<String>,
+        references: Vec<scan::ReferenceEvidence>,
+        limitation: &'static str,
+    }
+    let report = ReferencesReport {
+        target: path.canonicalize()?.display().to_string(),
+        scan_roots: existing
+            .iter()
+            .map(|root| root.display().to_string())
+            .collect(),
+        skipped_scan_roots: skipped
+            .iter()
+            .map(|root| root.display().to_string())
+            .collect(),
+        references,
+        limitation: "Une mention textuelle ne prouve pas l'utilisation effective du fichier.",
+    };
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        for reference in &report.references {
+            println!(
+                "{}:{} : {}",
+                reference.source, reference.line, reference.excerpt
+            );
+        }
+        if report.references.is_empty() {
+            println!("Aucune référence observée.");
+        }
+        println!("Limite : {}", report.limitation);
+    }
+    Ok(())
 }
