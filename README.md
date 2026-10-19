@@ -4,9 +4,9 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-2021-orange.svg)](Cargo.toml)
 
-`mach` est un outil CLI en Rust qui va plus loin que `file` : il identifie le
-type d'un fichier, liste les processus qui l'utilisent, indique sa dernière
-utilisation et cherche les fichiers qui y font référence (configs, logs...).
+`mach` est une plateforme locale d'investigation système. Elle relie fichiers,
+processus, références textuelles et instantanés afin de produire des résultats
+étayés, avec leurs sources, niveaux de confiance et limites de collecte.
 
 
 ## Installation
@@ -62,18 +62,39 @@ mach --help
 
 ### Depuis une release
 
-Télécharge le binaire correspondant à ton OS depuis la page
-[Releases](https://github.com/Mavvidl/mach/releases) (généré automatiquement
-par la CI à chaque tag `vX.Y.Z`).
+La release stable [v1.1.0](https://github.com/Mavvidl/Mach/releases/tag/v1.1.0)
+fournit ces binaires :
 
-Compatible Linux et Windows (voir la section « Limitations » pour les
-différences de comportement entre les deux).
+- [Linux x86_64](https://github.com/Mavvidl/Mach/releases/download/v1.1.0/mach-linux-x86_64)
+- [Windows x86_64](https://github.com/Mavvidl/Mach/releases/download/v1.1.0/mach-windows-x86_64.exe)
+
+Les releases futures sont publiées par la CI à chaque tag `vX.Y.Z`, après les
+tests et un smoke test du binaire sur Linux et Windows. Les différences de
+collecte entre plateformes sont décrites dans « Limitations connues ».
 
 ## Utilisation
 
+### Commandes d'investigation
+
 ```bash
-mach <fichier> [OPTIONS]
+mach inspect <fichier> [--scan <répertoire>...] [--db <base.sqlite3>] [--json]
+mach who <fichier> [--json]
+mach refs <fichier> [--scan <répertoire>...] [--json]
+mach impact <fichier> [--scan <répertoire>...] [--json]
+mach graph <fichier> [--scan <répertoire>...] [--db <base.sqlite3>] [--json]
+mach anomaly <fichier> [--db <base.sqlite3>] [--json]
+mach history <fichier> [--db <base.sqlite3>] [--json]
+mach diff [--since 24h] [--db <base.sqlite3>] [--json]
+mach watch <chemin> [--interval 30] [--db <base.sqlite3>] [--json]
 ```
+
+`inspect` est le point d'entrée général : il rassemble type, métadonnées,
+SHA-256, processus, références, historique disponible, indicateurs d'anomalie
+et graphe de relations. `who` cible les processus, `refs` les références
+textuelles, `impact` les conséquences possibles et `graph` les relations
+collectées. Toutes ces commandes acceptent `--json`.
+
+Les commandes historiques (`mach <fichier> [OPTIONS]`) restent disponibles :
 
 | Flag              | Rôle                                                          |
 |-------------------|----------------------------------------------------------------|
@@ -96,10 +117,11 @@ mach id_ed25519 --type --process --usage --json
 ### Historique local et analyse d'impact
 
 ```bash
-mach watch /etc --interval 30
+mach watch /etc/ssh/sshd_config --interval 30
 mach history /etc/ssh/sshd_config
 mach diff --since 24h
 mach impact /etc/ssh/sshd_config
+mach anomaly /etc/ssh/sshd_config
 ```
 
 `watch` enregistre des instantanés dans SQLite (`$XDG_DATA_HOME/mach/history.sqlite3`
@@ -108,6 +130,11 @@ sous Windows). L'option `--db` permet de choisir un autre emplacement. La survei
 est un polling, pas un journal système : l'historique commence à la première observation
 et peut manquer tout changement intervenu entre deux passages. Une absence observée ne
 permet pas non plus de distinguer une suppression d'une inaccessibilité.
+
+`watch` s'arrête avec Ctrl+C. Son premier passage constitue la référence initiale;
+une apparition vue lors d'un passage ultérieur est signalée comme telle, sans prétendre
+connaître sa date de création. La base est locale et peut contenir chemins, empreintes,
+permissions et identifiants de propriétaire observés.
 
 `impact` rapporte les processus observés et les références trouvées dans les répertoires
 analysés (`/etc` et les répertoires systemd usuels sous Linux, `ProgramData` sous Windows,
@@ -141,6 +168,11 @@ la taille, SHA-256 et la date de modification sont comparés lorsque les valeurs
 disponibles. Un fichier vu pour la première fois après l'instantané initial d'un `watch`
 est signalé comme apparition observée, sans inférer sa date de création. Une anomalie
 est un indicateur à examiner, jamais un verdict de logiciel malveillant.
+
+Les changements de permissions, propriétaire ou date de modification peuvent être
+signalés seulement si les métadonnées sont accessibles sur le système de fichiers et
+si une référence historique existe. Les relations inhabituelles ne sont pas classées
+automatiquement comme anomalies : il n'existe pas encore de profil de référence approuvé.
 
 Pour inspecter une sortie JSON ou isoler la base d'historique :
 
@@ -218,6 +250,14 @@ mach anomaly ./config.toml --db ./mach-history.sqlite3 --json
   à 100 % (voir ci-dessus). Pour un résultat fiable sur Windows, il faudrait
   intégrer les API natives (`winapi`/`windows-rs`) et énumérer les handles
   système — hors périmètre de cette première version.
+- La détection des processus sous Windows recherche des indices dans le nom et la
+  ligne de commande; elle ne confirme pas l'ouverture du fichier. Sous Linux,
+  l'accès à `/proc` peut être limité par les permissions.
+- L'indicateur d'emplacement exécutable inhabituel est une heuristique limitée à
+  certains répertoires volatils Unix (`/tmp`, `/var/tmp`, `/dev/shm`, `/run/user`).
+  Il n'est pas évalué sous Windows.
+- Les dates d'accès dépendent des options et du comportement du système de fichiers;
+  elles ne prouvent pas qu'un processus particulier a consulté le fichier.
 - Le scan de références est un simple `grep` récursif, pas une analyse
   sémantique : il peut avoir des faux positifs si le nom du fichier est
   courant (ex. `config` apparaissant ailleurs sans lien réel).
@@ -234,6 +274,9 @@ mach anomaly ./config.toml --db ./mach-history.sqlite3 --json
 - [`regex`](https://docs.rs/regex) — recherche de motifs dans les fichiers
 - [`serde`](https://docs.rs/serde) / [`serde_json`](https://docs.rs/serde_json) — sortie JSON
 - [`chrono`](https://docs.rs/chrono) — formatage des dates
+- [`rusqlite`](https://docs.rs/rusqlite) — historique SQLite local
+- [`sha2`](https://docs.rs/sha2) — empreintes SHA-256
+- [`ctrlc`](https://docs.rs/ctrlc) — arrêt propre de la surveillance avec Ctrl+C
 
 
 ## Contribuer
@@ -249,14 +292,4 @@ Ce projet est sous licence MIT — voir [LICENSE](LICENSE).
 
 Voir [CHANGELOG.md](CHANGELOG.md) pour l'historique des versions.
 
-
-#####--NOTE--#####
-Ajoutez la cible Windows à votre installation Rust :
-  rustup target add x86_64-pc-windows-gnu
-Installez le compilateur croisé sur votre système hôte :
-  sudo apt install mingw-w64 (Sur Ubuntu/Debian)
-  brew install mingw-w64 (Sur macOS (via Homebrew)
-
-Compilez votre projet en spécifiant la cible : 
-  cargo build --release --target x86_64-pc-windows-gnu
-  
+Version publiée : [v1.1.0](https://github.com/Mavvidl/Mach/releases/tag/v1.1.0).
