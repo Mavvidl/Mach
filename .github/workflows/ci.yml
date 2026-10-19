@@ -28,13 +28,16 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Build
-        run: cargo build --verbose
+        run: cargo build --locked --verbose
 
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --locked --verbose
 
       - name: Run release tests
-        run: cargo test --release --verbose
+        run: cargo test --locked --release --verbose
+
+      - name: Smoke-test CLI
+        run: cargo run --locked --release -- --help
 
   lint:
     name: Format & clippy

@@ -274,7 +274,8 @@ pub(crate) fn observe_file(
     path: &Path,
     provenance: &str,
 ) -> Result<Option<Observation>, Box<dyn Error>> {
-    let mut file = fs::File::open(path)?;
+    let path = normalized_path(path);
+    let mut file = fs::File::open(&path)?;
     let metadata = file.metadata()?;
     let mut digest = Sha256::new();
     let mut buffer = [0; 64 * 1024];
@@ -367,10 +368,12 @@ fn record_missing(
     connection: &Connection,
     path: &str,
 ) -> Result<Option<Observation>, Box<dyn Error>> {
+    let normalized = normalized_path(Path::new(path));
+    let path = normalized.to_string_lossy();
     let previous: Option<i64> = connection
         .query_row(
             "SELECT present FROM observations WHERE path = ?1 ORDER BY observed_at DESC, id DESC LIMIT 1",
-            [path],
+            [path.as_ref()],
             |row| row.get(0),
         )
         .optional()?;
@@ -383,10 +386,10 @@ fn record_missing(
     connection.execute(
         "INSERT INTO observations(path, observed_at, provenance, change_summary, present)
          VALUES (?1, ?2, 'polling', ?3, 0)",
-        params![path, timestamp, change],
+        params![path.as_ref(), timestamp, change],
     )?;
     Ok(Some(Observation {
-        path: path.to_string(),
+        path: path.into_owned(),
         observed_at: format_time(timestamp),
         sha256: None,
         size: None,
@@ -558,15 +561,22 @@ fn default_db_path() -> PathBuf {
 }
 
 fn normalized_path(path: &Path) -> PathBuf {
-    fs::canonicalize(path).unwrap_or_else(|_| {
-        if path.is_absolute() {
-            path.to_path_buf()
-        } else {
-            std::env::current_dir()
-                .map(|directory| directory.join(path))
-                .unwrap_or_else(|_| path.to_path_buf())
-        }
-    })
+    let absolute = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .map(|directory| directory.join(path))
+            .unwrap_or_else(|_| path.to_path_buf())
+    };
+    if let Ok(canonical) = fs::canonicalize(&absolute) {
+        return canonical;
+    }
+    match (absolute.parent(), absolute.file_name()) {
+        (Some(parent), Some(file_name)) => fs::canonicalize(parent)
+            .unwrap_or_else(|_| parent.to_path_buf())
+            .join(file_name),
+        _ => absolute,
+    }
 }
 
 fn parse_duration(input: &str) -> Result<Duration, Box<dyn Error>> {

@@ -19,9 +19,11 @@ jobs:
           - os: ubuntu-latest
             artifact_name: mach
             asset_name: mach-linux-x86_64
+            binary_path: ./target/release/mach
           - os: windows-latest
             artifact_name: mach.exe
             asset_name: mach-windows-x86_64.exe
+            binary_path: ./target/release/mach.exe
 
     steps:
       - uses: actions/checkout@v4
@@ -29,8 +31,27 @@ jobs:
       - name: Install stable Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Verify tag matches package version
+        shell: bash
+        run: |
+          package_version="$(cargo pkgid | sed 's/.*@//')"
+          tag_version="${GITHUB_REF_NAME#v}"
+          test "$package_version" = "$tag_version"
+
+      - name: Run platform tests
+        run: cargo test --locked --verbose
+
+      - name: Run release tests
+        run: cargo test --locked --release --verbose
+
       - name: Build release binary
-        run: cargo build --release
+        run: cargo build --locked --release
+
+      - name: Smoke-test release binary
+        shell: bash
+        run: |
+          "${{ matrix.binary_path }}" --version
+          "${{ matrix.binary_path }}" --help
 
       - name: Rename artifact
         shell: bash
@@ -48,6 +69,8 @@ jobs:
     name: Publish GitHub Release
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4

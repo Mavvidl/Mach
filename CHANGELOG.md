@@ -7,6 +7,22 @@ et ce projet suit [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-19
+
+### Ajouté
+
+- Historique local SQLite par instantanés, empreintes SHA-256 et détection des
+  changements de contenu, permissions, propriétaire et métadonnées disponibles.
+- Analyse d'impact, indicateurs d'anomalie explicables et graphe de relations
+  distinguant observations directes et inférences.
+- Commandes `inspect`, `who`, `refs`, `graph` et `anomaly` avec rapports JSON.
+- Migration automatique des bases d'historique existantes.
+
+### Modifié
+
+- Le workflow de release teste et démarre les binaires Linux et Windows avant
+  de les joindre à la release.
+
 ## [0.1.0] - 2026-08-10
 
 ### Ajouté
