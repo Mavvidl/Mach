@@ -93,6 +93,36 @@ Sans aucun flag d'affichage, `mach` active `-t -p -u -c` par défaut.
 mach id_ed25519 --type --process --usage --json
 ```
 
+### Historique local et analyse d'impact
+
+```bash
+mach watch /etc --interval 30
+mach history /etc/ssh/sshd_config
+mach diff --since 24h
+mach impact /etc/ssh/sshd_config
+```
+
+`watch` enregistre des instantanés dans SQLite (`$XDG_DATA_HOME/mach/history.sqlite3`
+ou `~/.local/share/mach/history.sqlite3` sous Linux; `%LOCALAPPDATA%/mach/history.sqlite3`
+sous Windows). L'option `--db` permet de choisir un autre emplacement. La surveillance
+est un polling, pas un journal système : l'historique commence à la première observation
+et peut manquer tout changement intervenu entre deux passages. Une absence observée ne
+permet pas non plus de distinguer une suppression d'une inaccessibilité.
+
+`impact` rapporte les processus observés et les références trouvées dans les répertoires
+analysés (`/etc` et les répertoires systemd usuels sous Linux, `ProgramData` sous Windows,
+ou les chemins fournis avec `--scan`). Chaque référence inclut sa ligne source et un niveau
+de confiance. Une mention dans une configuration ou une unité de service ne prouve pas une
+dépendance active. La commande ne modifie jamais le système.
+
+Pour inspecter une sortie JSON ou isoler la base d'historique :
+
+```bash
+mach impact /etc/ssh/sshd_config --scan /etc --json
+mach history /etc/ssh/sshd_config --db ./mach-history.sqlite3 --json
+mach diff --since 7d --db ./mach-history.sqlite3 --json
+```
+
 ```json
 {
   "file": "id_ed25519",

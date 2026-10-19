@@ -1,4 +1,5 @@
-use clap::Parser;
+use clap::{Parser, Subcommand};
+use std::path::PathBuf;
 
 /// mach — comme `file`, mais qui te dit aussi qui touche à ton fichier.
 #[derive(Parser, Debug)]
@@ -10,6 +11,9 @@ use clap::Parser;
     long_about = None
 )]
 pub struct Cli {
+    #[command(subcommand)]
+    pub command: Option<Commands>,
+
     /// Fichier cible (forme positionnelle : `mach id_ed25519 ...`)
     #[arg(value_name = "FILE")]
     pub file_pos: Option<String>,
@@ -41,6 +45,47 @@ pub struct Cli {
     /// Sortie au format JSON
     #[arg(short = 'j', long = "json")]
     pub json: bool,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Commands {
+    /// Enregistrer périodiquement l'état des fichiers (polling, pas un journal d'événements)
+    Watch {
+        path: PathBuf,
+        /// Intervalle d'échantillonnage en secondes
+        #[arg(long, value_name = "SECONDS", default_value_t = 30)]
+        interval: u64,
+        /// Emplacement de la base SQLite locale
+        #[arg(long)]
+        db: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Afficher les changements enregistrés pour un chemin
+    History {
+        path: PathBuf,
+        #[arg(long)]
+        db: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Afficher les changements observés durant une période (ex. 24h, 7d)
+    Diff {
+        #[arg(long, default_value = "24h")]
+        since: String,
+        #[arg(long)]
+        db: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Examiner les processus et références pouvant être affectés par un fichier
+    Impact {
+        path: PathBuf,
+        #[arg(long = "scan", value_name = "DIR", num_args = 1..)]
+        scan_dirs: Vec<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 impl Cli {

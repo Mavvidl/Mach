@@ -1,5 +1,7 @@
 mod cli;
 mod file_info;
+mod history;
+mod impact;
 mod output;
 mod process_info;
 mod scan;
@@ -26,8 +28,32 @@ fn print_ascii_art() {
 }
 
 fn main() -> ExitCode {
-    print_ascii_art();
     let cli = Cli::parse();
+    if cli.command.is_none() && !cli.json {
+        print_ascii_art();
+    }
+
+    if let Some(command) = cli.command {
+        return match command {
+            cli::Commands::Watch {
+                path,
+                interval,
+                db,
+                json,
+            } => run_command(history::watch(&path, db.as_deref(), interval, json)),
+            cli::Commands::History { path, db, json } => {
+                run_command(history::show_history(&path, db.as_deref(), json))
+            }
+            cli::Commands::Diff { since, db, json } => {
+                run_command(history::show_diff(&since, db.as_deref(), json))
+            }
+            cli::Commands::Impact {
+                path,
+                scan_dirs,
+                json,
+            } => run_command(impact::analyze(&path, &scan_dirs, json)),
+        };
+    }
 
     let file_path = match cli.target_file() {
         Some(f) => f,
@@ -102,4 +128,14 @@ fn main() -> ExitCode {
     out.print(cli.json);
 
     ExitCode::SUCCESS
+}
+
+fn run_command(result: Result<(), Box<dyn std::error::Error>>) -> ExitCode {
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("Erreur : {error}");
+            ExitCode::FAILURE
+        }
+    }
 }
